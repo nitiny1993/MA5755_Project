@@ -1,0 +1,342 @@
+---
+title: "MA5755_Project: Loan Default Prediction"
+author: "Group-9"
+date: "`r Sys.Date()`"
+output: html_document
+---
+### Introduction
+#### Problem
+In this project, we want to know the chance that some customers will default their loan payment and use that as 
+a parameter to decide whether to approve or disapprove the loan. Also, to identify and specifically target the customers segments, those are eligible for loan amount
+
+#### Objective
+The goal of this project is to build a model that will classify if a certain customer will default its loan payment 
+or not.
+
+#### Dataset Description
+Dream Housing Finance company deals in all home loans. They have presence across all urban, semi urban and 
+rural areas. Customer first apply for home loan after that company validates the customer eligibility for 
+loan.
+Company wants to automate the loan eligibility process (real time) based on customer detail provided while 
+filling online application form. These details are Gender, Marital Status, Education, Number of Dependents, 
+Income, Loan Amount, Credit History and others. We are using there partial data set available on Kaggle Platform.
+
+### Importing the data set
+
+```{r}
+data <- read.csv('loan_data_set.csv')
+```
+
+### Checking for the structure of the data
+```{r}
+str(data)
+```
+The data set consist of 614 observations with 13 variables out which there are 8 character variables, 4 integer variables and 1 numeric variable.
+
+#### Convert all character columns to factor
+```{r}
+data <- as.data.frame(unclass(data), stringsAsFactors = TRUE)
+str(data)
+```
+All the 8 character variables are now converted to categorical variables.
+
+### Extract top 10 observations
+```{r}
+head(data, n = 10)
+```
+### Data Pre-processing
+#### Checking for the structure and other possible incompleteness
+```{r}
+summary(data)
+```
+The summary reveals that there are some blank spaces. For instance: Gender has 13 blank spaces, Married has 3, Dependents has 15, Self_Employed has 32, LoanAmount has 22, Loan_Amount_Term has 14 & Credit_History has 50. 
+Which sums to 149.
+
+More so, the summary statistics gives us a view of the skewness of the numeric variables;i.e how close or far 
+away the mean is from the median(middle) mainly for numeric data.
+
+#### Replacing blank spaces with NAs
+```{r}
+data[data == ""] <- NA
+```
+We have been able to replace the blank spaces with NA’s which will now be captured by R as a missing number.
+
+#### Checking for missing data
+```{r}
+sum(is.na(data))
+```
+This shows that there are 149 missing values in the data set
+
+#### Summary of the data
+```{r}
+summary(data)
+```
+The summary statistic has now clearly shown the missing numbers and variables that has the missing values. 
+For instance, Dependents now has 15 NA’s as compared to 15 blank spaces it has earlier.
+
+#### Handling missing number using KNN Imputation method
+```{r}
+library(VIM)
+#Picking the columns with missing number
+data1 <- kNN(data,variable = c("Gender","Married","Dependents","Self_Employed","LoanAmount","Loan_Amount_Term",
+                               "Credit_History"), k = 7)
+summary(data1)
+```
+
+#### Subsetting the data
+```{r}
+data1 <- subset(data1, select = Loan_ID:Loan_Status)
+sum(is.na(data1))
+```
+The data set now has 0 missing values.
+
+#### Summary of the data
+```{r}
+library(psych)
+describe(data1)
+```
+Describes gives us a broad range of summary statistics.
+
+### Exploratory Data Analysis
+### Correlation Matrix
+#### Checking for correlation and multicollinearity between the variables
+```{r}
+library(psych)
+pairs.panels (data1, gap = 0, bg = c("red","green","blue"[data1$Loan_Status]), pch = 21)
+```
+
+### Checking for outlier
+#### using Box Plot
+```{r}
+boxplot(data1$ApplicantIncome, horizontal = TRUE, main = "Boxplot for Applicant Income")
+```
+
+```{r}
+boxplot(data1$CoapplicantIncome, horizontal = TRUE, main = "Boxplot for Co-Applicant Income")
+```
+
+```{r}
+boxplot(data1$LoanAmount, horizontal = TRUE, main = "Boxplot for LoanAmount")
+```
+
+### Outlier Treatment for ApplicantIncome,CoapplicantIncome and LoanAmount
+#### ApplicantIncome
+```{r}
+bench <- 5795 + 1.5*IQR(data1$ApplicantIncome) #Q3 + 1.5*IQR(data)
+bench
+```
+
+```{r}
+#Winsorizing method of treating outlier
+data1$ApplicantIncome[data1$ApplicantIncome > bench]
+```
+
+```{r}
+data1$ApplicantIncome[data1$ApplicantIncome > bench] <- bench
+summary(data1$ApplicantIncome)
+```
+
+```{r}
+boxplot(data1$ApplicantIncome, main = "Boxplot for ApplicantIncome")
+```
+```{r}
+length(data1$ApplicantIncome)
+```
+
+#### CoapplicantIncome
+```{r}
+bench <- 2297 + 1.5*IQR(data1$CoapplicantIncome) #Q3 + 1.5*IQR(data)
+bench
+```
+
+```{r}
+#Winsorizing method of treating outlier
+data1$CoapplicantIncome[data1$CoapplicantIncome > bench]
+```
+
+```{r}
+data1$CoapplicantIncome[data1$CoapplicantIncome > bench] <- bench
+summary(data1$CoapplicantIncome)
+```
+
+```{r}
+boxplot(data1$CoapplicantIncome, main = "Boxplot for Co-ApplicantIncome")
+```
+```{r}
+length(data1$CoapplicantIncome)
+```
+
+#### LoanAmount
+```{r}
+bench <- 165 + 1.5*IQR(data1$LoanAmount) #Q3 + 1.5*IQR(data)
+bench
+```
+
+```{r}
+#Winsorizing method of treating outlier
+data1$LoanAmount[data1$LoanAmount > bench]
+```
+
+```{r}
+data1$LoanAmount[data1$LoanAmount > bench] <- bench
+summary(data1$LoanAmount)
+```
+
+```{r}
+boxplot(data1$LoanAmount, main = "Boxplot for LoanAmount")
+```
+
+```{r}
+length(data1$LoanAmount)
+```
+The outliers have all been treated and the data is now clean to an appreciable level.
+### Checking for class imbalance
+```{r}
+prop.table(table(data1$Loan_Status))
+```
+
+```{r}
+table(data1$Loan_Status)
+```
+
+Class imbalance is a situation, mostly in classification model building; where the total number of positive class of a data set is extremely lower than the total number of the negative class.
+
+In the data set, we have 68.7% of the response variable as YES and 31.3% as NO.Hence, we can conclude that there is no class imbalance in this data set.
+
+### Train & Test set
+```{r}
+set.seed(222)
+split = sample(2,nrow(data1),prob = c(0.75, 0.25),replace = TRUE)
+train_set = data1[split == 1,]
+test_set = data1[split == 2,]
+```
+
+It is the usual practice in Machine Learning field to divide the data set into train and test set. The model 
+will be built on the train set and the performance of the model will be tested on the test.
+
+### Logistic Regression
+Logistic regression uses sigmoid function to classify variables into classes and its basically applicable to classification problems. Other applicable models for classification problems are Decision Tree, Random Forest, 
+Naive Bayes, Neural Network and so on.
+
+For the purpose of this project we will be using Decision Tree and Random Forest along with Logistic Regression.
+```{r}
+# Fitting Logistic Regression to the Training set
+logistics_classifier = glm(formula = Loan_Status ~ ., family = binomial, data = train_set[,-c(1)])
+
+summary(logistics_classifier)
+```
+
+Based on the output of the Logistic regression,only 3 variables are significant while other are insignificant.
+
+Credit_History is an important factor in deciding whether a client will default or not and this was clearly in 
+tune with the outcome of the model. Whether the customer is married or not is also a significant factor, as far 
+as this data set is concerned.
+
+#### Prediction using Logistics Regression
+```{r}
+# Predicting the Test set results
+prob_pred = predict(logistics_classifier, type = 'response', newdata = test_set)
+y_pred = ifelse(prob_pred > 0.5, 1, 0)
+```
+
+#### Estimating the performance of the model
+```{r}
+# Confusion Matrix
+cm = table(ActualValue=test_set$Loan_Status, PredictedValue=prob_pred > 0.5)
+cm
+```
+
+```{r}
+#Estimating the percentage of performance
+sum(diag(cm))/sum(cm)
+```
+
+Logistics Regression was able to give us an accuracy of 80.28%, which means that we can expect our model to 
+classify correct about 8 observations in every 10.
+
+### Decision Tree
+```{r}
+library(party)
+Tree_Classifer = ctree(Loan_Status ~ ., data = train_set[,-c(1)])
+Tree_Classifer
+```
+
+```{r}
+plot(Tree_Classifer)
+```
+The decision tree model also corroborated the position of the logistic regression by making credit_history as 
+the most important variable for consideration when deciding if a customer is going to default or not.
+
+#### Prediction using Decision Tree
+```{r}
+# Predicting the Test set results
+pred = predict(Tree_Classifer, newdata = test_set)
+```
+
+#### Estimating the performance of the model
+```{r}
+# Confusion Matrix
+cm = table(ActualValue=test_set$Loan_Status, PredictedValue=pred)
+cm
+```
+
+
+```{r}
+#Estimating the percentage of performance
+sum(diag(cm))/sum(cm)
+```
+The level of accuracy achieved by the Decision Tree model is similar to that of logistics regression at 80.28%
+
+### Random Forest
+Random Forest is ensemble method in that it averages the performance of 500 Decision Trees to arrive at its output where Decision Tree employs only just one Tree.The 500 tree were chosen at random. Its the reason the model is 
+regarded as Random Forest.
+```{r}
+library(randomForest)
+set.seed(153)
+rf_classifier <- randomForest(Loan_Status ~ ., data = train_set[,-c(1)])
+
+str(rf_classifier)
+```
+```{r}
+attributes(rf_classifier)
+```
+
+#### Prediction using Random Forest
+```{r}
+# Predicting the Test set results
+rf_pred = predict(rf_classifier,newdata = test_set)
+```
+
+#### Estimating the performance of the model
+```{r}
+# Confusion Matrix
+cm = table(ActualValue=test_set$Loan_Status, PredictedValue=rf_pred)
+cm
+```
+
+
+```{r}
+#Estimating the percentage of performance
+sum(diag(cm))/sum(cm)
+```
+
+The level of accuracy achieved by the Random Forest model is also 80.28%
+
+```{r}
+plot(rf_classifier)
+legend("right", cex = 0.75, legend = {colnames(rf_classifier$err.rate)}, lty=c(1,2,3), col=c(1,2,3), horiz=F)
+```
+
+#### Determining the most important variable in the forest
+```{r}
+varImpPlot(rf_classifier)
+```
+
+```{r}
+importance(rf_classifier)
+```
+
+The Random Forest model also ranked Credit_History as the most important variable just the other 2 previous models. While Random Forest agree that ApplicantIncome is another important variable; Logistics regression chose Married.
+
+### Conclusion
+Based on the performance of Logistics Regression, Decision Tree and Random Forest models; we can conclude that if adequate pre-processing methods were carefully observed; these models can perform extremely well on classification problem.
